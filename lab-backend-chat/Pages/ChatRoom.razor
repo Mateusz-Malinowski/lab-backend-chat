@@ -1,6 +1,8 @@
 ﻿@page "/chatroom"
 @inject NavigationManager navigationManager
+@inject IUserService userService
 @using Microsoft.AspNetCore.SignalR.Client;
+@using lab_backend_chat.Services
 
 <h1>Blazor SignalR Chat Sample</h1>
 <hr />
@@ -48,6 +50,16 @@ else
         <hr />
         <textarea class="input-lg" placeholder="enter your comment" @bind="@_newMessage"></textarea>
         <button class="btn btn-default" @onclick="@(() => SendAsync(_newMessage))">Send</button>
+        <select class="form-select" @bind="@_to">
+            <option value="All">All</option>
+            @foreach (var user in userService.GetAll())
+            {
+                @if (user.Username != _username)
+                {
+                    <option value="@user.Username">@user.Username</option>
+                }
+            }
+        </select>
     </div>
 }
 
@@ -69,6 +81,8 @@ else
 
     private string _hubUrl;
     private HubConnection _hubConnection;
+
+    private string _to = "";
 
     public async Task Chat()
     {
@@ -98,7 +112,8 @@ else
                 .Build();
 
             _hubConnection.On<string, string>("Broadcast", BroadcastMessage);
-
+            _hubConnection.On<string, string>("Private", PrivateMessage);
+            
             await _hubConnection.StartAsync();
 
             await SendAsync($"[Notice] {_username} joined chat room.");
@@ -108,6 +123,8 @@ else
             _message = $"ERROR: Failed to start chat client: {e.Message}";
             _isChatting = false;
         }
+        
+        userService.Add(_hubConnection.ConnectionId, _username);
     }
 
     private void BroadcastMessage(string name, string message)
@@ -118,6 +135,12 @@ else
 
         // Inform blazor the UI needs updating
         StateHasChanged();
+    }
+    
+    private void PrivateMessage(string name, string message)
+    {
+        _messages.Add(new Message(name, $"[Private]: {message}", false));
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task DisconnectAsync()
@@ -132,14 +155,21 @@ else
             _hubConnection = null;
             _isChatting = false;
         }
+        
+        userService.RemoveByName(_username);
     }
 
     private async Task SendAsync(string message)
     {
         if (_isChatting && !string.IsNullOrWhiteSpace(message))
         {
-            await _hubConnection.SendAsync("Broadcast", _username, message);
-
+            if (_to == "All") await _hubConnection.SendAsync("Broadcast", _username, message);
+            else
+            {
+                var connectionId = userService.GetConnectionIdByName(_to);
+                await _hubConnection.SendAsync("Private", _username, connectionId, message);
+            }
+            
             _newMessage = string.Empty;
         }
     }

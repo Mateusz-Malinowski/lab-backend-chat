@@ -1,5 +1,6 @@
 using lab_backend_chat;
 using lab_backend_chat.Data;
+using lab_backend_chat.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddSingleton<IUserService, UserService>();
 
 var app = builder.Build();
 
